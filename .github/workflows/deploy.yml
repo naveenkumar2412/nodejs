@@ -1,0 +1,54 @@
+name: Deploy Node.js App to EC2
+
+on:
+  push:
+    branches:
+      - main  # Trigger deploy on push to the main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the code
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      # Step 2: Set up Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'  # Use your preferred version of Node.js
+
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: |
+          npm install
+
+       # Step 4: Upload SSH private key to GitHub Actions
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      # Step 5: Deploy to EC2 using SSH
+      - name: Deploy to EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            # Navigate to the project directory (if it already exists)
+            cd /home/ubuntu/nodejs || mkdir /home/ubuntu/your-app-directory && cd /home/ubuntu/your-app-directory
+
+            # Pull the latest changes
+            git pull origin main
+
+            # Install dependencies on the EC2 instance
+            npm install
+
+            # Restart the app using PM2
+            pm2 stop app.js || true
+            pm2 start app.js
+          EOF
+
+
